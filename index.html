@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Jyotish Admin Portal</title>
+    <meta name="description" content="Admin dashboard for managing astrology consultation requests and assignments.">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Playfair+Display:ital,wght@0,500;0,600;1,500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="app-layout">
+
+        <!-- Sidebar -->
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-logo">
+                <div class="logo-icon">🔮</div>
+                <div class="logo-text">
+                    <h2>Jyotish <span>Portal</span></h2>
+                    <p>Admin Dashboard</p>
+                </div>
+            </div>
+
+            <nav class="nav-menu">
+                <div class="nav-section-label">MAIN</div>
+                <a href="#" class="nav-link active" data-view="dashboard" id="nav-dashboard">
+                    <span class="nav-icon">📊</span>
+                    <span>Dashboard</span>
+                </a>
+                <a href="#" class="nav-link" data-view="requests" id="nav-requests">
+                    <span class="nav-icon">📋</span>
+                    <span>Consult Requests</span>
+                    <span class="nav-badge" id="sidebarPendingCount">0</span>
+                </a>
+
+                <div class="nav-section-label" style="margin-top: 1.5rem;">MANAGEMENT</div>
+                <a href="#" class="nav-link" data-view="consultants" id="nav-consultants">
+                    <span class="nav-icon">👥</span>
+                    <span>Consultants</span>
+                </a>
+            </nav>
+
+            <div class="sidebar-footer">
+                <div class="admin-info">
+                    <div class="admin-avatar">A</div>
+                    <div>
+                        <p class="admin-name">Admin User</p>
+                        <p class="admin-role">Super Admin</p>
+                    </div>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Top Navigation Bar -->
+            <header class="top-nav">
+                <div class="top-nav-left">
+                    <div class="page-title" id="pageTitle">Dashboard</div>
+                </div>
+                <div class="top-nav-right">
+                    <div class="search-wrap">
+                        <span class="search-icon">🔍</span>
+                        <input type="text" id="searchInput" placeholder="Search by name, phone, concern..." autocomplete="off">
+                    </div>
+                    <div class="refresh-btn" id="refreshBtn" title="Refresh data">
+                        <span id="refreshIcon">↻</span>
+                    </div>
+                    <div class="status-dot" id="connectionStatus" title="Connected to Google Sheets"></div>
+                </div>
+            </header>
+
+            <!-- ===================== VIEW: DASHBOARD ===================== -->
+            <div id="view-dashboard" class="content-view">
+
+                <!-- Stats Cards -->
+                <div class="stats-grid">
+                    <div class="stat-card stat-total">
+                        <div class="stat-icon">📥</div>
+                        <div class="stat-body">
+                            <p class="stat-label">Total Requests</p>
+                            <p class="stat-value" id="totalRequests">—</p>
+                            <p class="stat-sub" id="statCampaignBreak">Loading...</p>
+                        </div>
+                    </div>
+                    <div class="stat-card stat-pending">
+                        <div class="stat-icon">⏳</div>
+                        <div class="stat-body">
+                            <p class="stat-label">Pending / Allocated</p>
+                            <p class="stat-value text-warning" id="pendingAssignments">—</p>
+                            <p class="stat-sub">Needs attention</p>
+                        </div>
+                    </div>
+                    <div class="stat-card stat-done">
+                        <div class="stat-icon">✅</div>
+                        <div class="stat-body">
+                            <p class="stat-label">Done</p>
+                            <p class="stat-value text-success" id="completedRequests">—</p>
+                            <p class="stat-sub">Consultations completed</p>
+                        </div>
+                    </div>
+                    <div class="stat-card stat-dnp">
+                        <div class="stat-icon">❌</div>
+                        <div class="stat-body">
+                            <p class="stat-label">DNP / Refund</p>
+                            <p class="stat-value text-danger" id="dnpCount">—</p>
+                            <p class="stat-sub">Did not proceed</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Consultant Summary Cards -->
+                <div class="section-header">
+                    <h3>Consultant Load Overview</h3>
+                    <p>Assignment distribution across all consultants</p>
+                </div>
+                <div class="consultant-summary-grid" id="consultantSummaryGrid">
+                    <div class="loading-state">
+                        <div class="spinner"></div>
+                        <p>Loading consultant data...</p>
+                    </div>
+                </div>
+
+                <!-- Recent Activity -->
+                <div class="section-header" style="margin-top: 2rem;">
+                    <h3>Recent Bookings</h3>
+                    <a href="#" class="see-all-link" data-view="requests">View all →</a>
+                </div>
+                <div class="panel">
+                    <div class="table-responsive">
+                        <table class="data-table" id="recentTable">
+                            <thead>
+                                <tr>
+                                    <th>#</th>
+                                    <th>Client Name</th>
+                                    <th>Campaign</th>
+                                    <th>Concern</th>
+                                    <th>Package</th>
+                                    <th>Status</th>
+                                    <th>Consultant</th>
+                                    <th>Action</th>
+                                </tr>
+                            </thead>
+                            <tbody id="recentTableBody">
+                                <tr><td colspan="8" class="empty-state"><div class="spinner"></div> Loading...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ===================== VIEW: REQUESTS ===================== -->
+            <div id="view-requests" class="content-view" style="display:none;">
+                <div class="panel">
+                    <div class="panel-header">
+                        <div>
+                            <h2>All Consultation Requests</h2>
+                            <p style="color: var(--text-muted); font-size: 0.9rem; margin-top: 0.25rem;" id="requestsSubtitle">Showing all records</p>
+                        </div>
+                        <div class="filters-row">
+                            <select id="campaignFilter">
+                                <option value="all">🌐 All Campaigns</option>
+                                <option value="Makar Sankranti">🪁 Makar Sankranti</option>
+                                <option value="Hanuman Jayanti">🚩 Hanuman Jayanti</option>
+                            </select>
+                            <select id="statusFilter">
+                                <option value="all">All Statuses</option>
+                                <option value="Done">✅ Done</option>
+                                <option value="Allocated">🔄 Allocated</option>
+                                <option value="Pending">⏳ Pending</option>
+                                <option value="DNP">❌ DNP</option>
+                                <option value="Refund">💸 Refund</option>
+                                <option value="Allotment Changed">🔀 Allotment Changed</option>
+                            </select>
+                            <select id="consultantFilter">
+                                <option value="all">All Consultants</option>
+                            </select>
+                            <select id="genderFilter">
+                                <option value="all">All Genders</option>
+                                <option value="Male">Male</option>
+                                <option value="Female">Female</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="table-responsive">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>#</th>
+                                    <th>Client</th>
+                                    <th>Contact</th>
+                                    <th>Campaign</th>
+                                    <th>Concern</th>
+                                    <th>Package</th>
+                                    <th>DOB</th>
+                                    <th>Status</th>
+                                    <th>Consultant</th>
+                                    <th>Action</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tableBody">
+                                <tr><td colspan="10" class="empty-state"><div class="spinner"></div> Loading...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div class="table-footer">
+                        <span id="tableCount">0 records</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ===================== VIEW: CONSULTANTS ===================== -->
+            <div id="view-consultants" class="content-view" style="display:none;">
+                <div class="consultants-layout">
+                    <!-- Left: Consultant Cards -->
+                    <div>
+                        <div class="panel-header" style="padding: 0 0 1.5rem 0; border: none;">
+                            <div>
+                                <h2>Consultant Roster</h2>
+                                <p style="color: var(--text-muted); font-size: 0.9rem; margin-top: 0.25rem;">All registered consultants</p>
+                            </div>
+                            <button class="primary-btn small-btn" onclick="openAddConsultantModal()">+ Add Consultant</button>
+                        </div>
+                        <div class="consultant-cards-grid" id="consultantCardsGrid">
+                            <div class="loading-state"><div class="spinner"></div><p>Loading...</p></div>
+                        </div>
+                    </div>
+
+                    <!-- Right: Stats per consultant -->
+                    <div>
+                        <div class="panel-header" style="padding: 0 0 1.5rem 0; border: none;">
+                            <h2>Assignments by Consultant</h2>
+                        </div>
+                        <div class="panel" id="consultantStatsPanel">
+                            <div class="table-responsive">
+                                <table class="data-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Consultant</th>
+                                            <th>Batch</th>
+                                            <th>Done</th>
+                                            <th>Allocated</th>
+                                            <th>DNP/Refund</th>
+                                            <th>Total</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="consultantStatsBody">
+                                        <tr><td colspan="6" class="empty-state"><div class="spinner"></div> Loading...</td></tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- =================== MODAL: Client Detail & Assign =================== -->
+    <div class="modal-overlay" id="detailModal">
+        <div class="modal-content large-modal">
+            <button class="close-modal" id="closeModal">×</button>
+
+            <div class="modal-header">
+                <div>
+                    <h2 id="modalName">Client Details</h2>
+                    <p id="modalContact" style="color: var(--text-muted); font-size: 0.9rem; margin-top: 4px;"></p>
+                </div>
+                <div style="display: flex; gap: 0.75rem; align-items: center;">
+                    <span id="modalCampaignBadge" class="badge campaign-badge"></span>
+                    <span id="modalStatusBadge" class="badge">Status</span>
+                </div>
+            </div>
+
+            <div class="modal-grid">
+                <!-- LEFT: Client Info -->
+                <div class="modal-left">
+                    <!-- Birth Details -->
+                    <div class="info-card">
+                        <h4 class="info-card-title">🌟 Birth & Personal Info</h4>
+                        <div class="info-grid">
+                            <div class="info-item">
+                                <span class="info-label">Gender</span>
+                                <span class="info-value" id="modalGender">—</span>
+                            </div>
+                            <div class="info-item">
+                                <span class="info-label">Date of Birth</span>
+                                <span class="info-value" id="modalDob">—</span>
+                            </div>
+                            <div class="info-item">
+                                <span class="info-label">Time of Birth</span>
+                                <span class="info-value" id="modalTob">—</span>
+                            </div>
+                            <div class="info-item">
+                                <span class="info-label">Place of Birth</span>
+                                <span class="info-value" id="modalPob">—</span>
+                            </div>
+                            <div class="info-item">
+                                <span class="info-label">Client Type</span>
+                                <span class="info-value" id="modalClientType">—</span>
+                            </div>
+                            <div class="info-item">
+                                <span class="info-label">Heard Via</span>
+                                <span class="info-value" id="modalHeardVia">—</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Query Details -->
+                    <div class="info-card">
+                        <h4 class="info-card-title">💬 Consultation Query</h4>
+                        <div class="concern-tag" id="modalConcern">—</div>
+                        <p class="query-text" id="modalQuery">No additional details provided.</p>
+                    </div>
+
+                    <!-- Payment / Package -->
+                    <div class="info-card">
+                        <h4 class="info-card-title">💰 Package & Payment</h4>
+                        <div class="info-grid">
+                            <div class="info-item">
+                                <span class="info-label">Package</span>
+                                <span class="info-value highlight" id="modalPackage">—</span>
+                            </div>
+                            <div class="info-item">
+                                <span class="info-label">Payment Method</span>
+                                <span class="info-value" id="modalPayment">—</span>
+                            </div>
+                        </div>
+                        <a id="modalScreenshotLink" href="#" target="_blank" class="screenshot-link" style="display:none;">📷 View Payment Screenshot</a>
+                    </div>
+                </div>
+
+                <!-- RIGHT: Assignment Panel -->
+                <div class="modal-right">
+                    <div class="info-card assign-card">
+                        <h4 class="info-card-title">⚡ Assignment & Status</h4>
+
+                        <div class="form-group">
+                            <label for="consultantSelect">Assign Primary Consultant</label>
+                            <select id="consultantSelect">
+                                <option value="">— Unassigned —</option>
+                            </select>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="foundationSelect">Assign Foundation Consultant</label>
+                            <select id="foundationSelect">
+                                <option value="">— None —</option>
+                            </select>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="firstPreferenceInput">First Preference</label>
+                            <input type="text" id="firstPreferenceInput" placeholder="e.g. Sikha" class="text-input">
+                        </div>
+
+                        <div class="form-group">
+                            <label for="statusSelect">Update Status</label>
+                            <select id="statusSelect">
+                                <option value="Pending">⏳ Pending Assignment</option>
+                                <option value="Allocated">🔄 Allocated</option>
+                                <option value="Done">✅ Consultation Done</option>
+                                <option value="DNP">❌ DNP (Did Not Proceed)</option>
+                                <option value="Refund">💸 Refund</option>
+                                <option value="Allotment Changed">🔀 Allotment Changed</option>
+                            </select>
+                        </div>
+
+                        <button class="primary-btn save-btn" id="saveUpdatesBtn">
+                            <span id="saveBtnText">💾 Save Changes</span>
+                        </button>
+
+                        <div class="quick-actions">
+                            <p class="info-label" style="margin-bottom: 0.75rem;">Quick Actions</p>
+                            <button class="secondary-btn" onclick="copyClientInfo()">📋 Copy Client Info</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- =================== MODAL: Add Consultant =================== -->
+    <div class="modal-overlay" id="addConsultantModal">
+        <div class="modal-content small-modal">
+            <button class="close-modal" onclick="closeAddConsultantModal()">×</button>
+            <div class="modal-header">
+                <h2>Add New Consultant</h2>
+            </div>
+            <div class="form-group">
+                <label for="newConsultantName">Consultant Name</label>
+                <input type="text" id="newConsultantName" class="text-input" placeholder="e.g. Rahul Sharma">
+            </div>
+            <div class="form-group">
+                <label for="newConsultantBatch">Batch</label>
+                <input type="text" id="newConsultantBatch" class="text-input" placeholder="e.g. 2025 Nak / Mentor / 2025 Fnd">
+            </div>
+            <div class="form-group">
+                <label for="newConsultantPhone">Contact (WhatsApp)</label>
+                <input type="text" id="newConsultantPhone" class="text-input" placeholder="e.g. 98266 49669">
+            </div>
+            <button class="primary-btn" style="margin-top: 0.5rem;" onclick="saveNewConsultant()">Save Consultant</button>
+            <p id="consultantAddStatus" class="status-msg"></p>
+        </div>
+    </div>
+
+    <!-- Toast Notification -->
+    <div class="toast" id="toast"></div>
+
+    <script src="data.js"></script>
+    <script src="script.js?v=5"></script>
+</body>
+</html>

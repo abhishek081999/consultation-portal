@@ -1,0 +1,19 @@
+# Dependencies
+node_modules/
+
+# Generated files (regenerate with: node generate-data.js)
+data.js
+
+# Temp/debug scripts
+read_excel.js
+read_excel2.js
+excel_data_output.txt
+excel_data_output2.txt
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
