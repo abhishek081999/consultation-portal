@@ -93,22 +93,27 @@ async function loadLiveGSData() {
     statusDot.title = 'Fetching live data...';
     
     try {
-        // Parallel fetch for speed
+        // Parallel fetch for speed + Cache-busting with Date.now()
+        const t = Date.now();
         const [resHanuman, resConsultants] = await Promise.all([
-            fetch(FETCH_URL_HANUMAN).then(r => r.text()),
-            fetch(FETCH_URL_CONSULTANTS).then(r => r.text())
+            fetch(FETCH_URL_HANUMAN + '&t=' + t).then(r => r.text()),
+            fetch(FETCH_URL_CONSULTANTS + '&t=' + t).then(r => r.text())
         ]);
 
         const rowsHanuman = parseCSV(resHanuman);
         const rowsConsultants = parseCSV(resConsultants);
 
-        // Map Consultants
-        // Headers: Batch | Participants | Contat detail
-        allConsultants = rowsConsultants.slice(1).map(r => ({
-            name:  r[1] || '',
-            batch: r[0] || 'General',
-            phone: r[2] || ''
-        })).filter(c => c.name);
+        // Map Consultants - Skip the header (Row 1), process all other rows starting from Row 2
+        // Data usually starts at Row 2 or Row 3; filter ensures only valid records are kept
+        allConsultants = rowsConsultants.slice(1).map((r, i) => {
+            // Log for debug (user can check browser console if needed)
+            // Header: Batch | Participant | Contact
+            return {
+                name:  String(r[1] || '').trim(),
+                batch: String(r[0] || '').trim() || 'General',
+                phone: String(r[2] || '').trim()
+            };
+        }).filter(c => c.name && c.name !== 'Participants' && c.name !== 'Participant Name');
 
         // Map Hanuman requests
         // Headers: S.No | Name | Number | Gender | DOB | Time | Place | Consultation type | Query 1 | Query 2 | Consulatant | Consulatnt foundation | Status | First Prefencesence
