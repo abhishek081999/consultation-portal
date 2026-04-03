@@ -103,17 +103,21 @@ async function loadLiveGSData() {
         const rowsHanuman = parseCSV(resHanuman);
         const rowsConsultants = parseCSV(resConsultants);
 
-        // Map Consultants - Skip the header (Row 1), process all other rows starting from Row 2
-        // Data usually starts at Row 2 or Row 3; filter ensures only valid records are kept
-        allConsultants = rowsConsultants.slice(1).map((r, i) => {
-            // Log for debug (user can check browser console if needed)
-            // Header: Batch | Participant | Contact
-            return {
+        // Map Consultants - MORE ROBUST MAPPING
+        allConsultants = rowsConsultants
+            .filter(r => r.length >= 2) // Must have at least name and batch
+            .map(r => ({
                 name:  String(r[1] || '').trim(),
-                batch: String(r[0] || '').trim() || 'General',
+                batch: String(r[0] || '').trim(),
                 phone: String(r[2] || '').trim()
-            };
-        }).filter(c => c.name && c.name !== 'Participants' && c.name !== 'Participant Name');
+            }))
+            .filter(c => {
+                // Skip headers, empty rows, and meta-data
+                const n = c.name.toLowerCase();
+                if (!n || n === 'participants' || n === 'participant' || n === 'participant name') return false;
+                if (n.includes('contat detail') || n.includes('batch')) return false;
+                return true;
+            });
 
         // Map Hanuman requests
         // Headers: S.No | Name | Number | Gender | DOB | Time | Place | Consultation type | Query 1 | Query 2 | Consulatant | Consulatnt foundation | Status | First Prefencesence
