@@ -1,7 +1,7 @@
 // =====================================================================
 // JYOTISH ADMIN PORTAL - script.js
-// Data Source: data.js (generated from XLSX by generate-data.js)
-// Run `node generate-data.js` to refresh data from the Excel file.
+// Data Source: Live Google Spreadsheet
+// Spreadsheet ID: 1SpdyxWW0cHxDUUuy6VrquASgBjucEpFAFPJuuXuSKNU
 // =====================================================================
 
 // =====================================================================
@@ -16,6 +16,14 @@ let currentGenderFilter = 'all';
 let currentEditingId = null;
 let searchQuery = '';
 
+const GS_ID = '1SpdyxWW0cHxDUUuy6VrquASgBjucEpFAFPJuuXuSKNU';
+const FETCH_URL_HANUMAN = `https://docs.google.com/spreadsheets/d/${GS_ID}/gviz/tq?tqx=out:csv&sheet=Assignee%20of%20Hanuman`;
+const FETCH_URL_CONSULTANTS = `https://docs.google.com/spreadsheets/d/${GS_ID}/gviz/tq?tqx=out:csv&sheet=Consultant_List`;
+
+// --- SYNC API URL ---
+// Paste your Web App URL from 'Extensions > Apps Script > Deploy' here to enable BI-DIRECTIONAL SYNC
+const SYNC_URL = "https://script.google.com/macros/s/AKfycbyOOi4TWEc8xR-V_0fk0EMm2C8FM3U_nh2FT_-vAqIzLL7dq8B3xWFFplEYlMl6uTEq6g/exec"; 
+
 // =====================================================================
 //  INIT
 // =====================================================================
@@ -24,13 +32,124 @@ document.addEventListener('DOMContentLoaded', () => {
     setupFilters();
     setupSearch();
     setupModal();
-    loadXLSXData();
+    loadLiveGSData();
+    
+    if (!SYNC_URL) {
+        console.warn('SYNC_URL is missing. Changes will be local-only. Follow SYNC_SETUP.md.');
+    }
+
     document.getElementById('refreshBtn').addEventListener('click', () => {
         document.getElementById('refreshBtn').classList.add('spinning');
-        loadXLSXData();
+        loadLiveGSData();
         setTimeout(() => document.getElementById('refreshBtn').classList.remove('spinning'), 800);
     });
 });
+
+// =====================================================================
+//  CSV PARSER (Vanilla JS)
+// =====================================================================
+function parseCSV(text) {
+    const rows = [];
+    let currentRow = [];
+    let currentValue = "";
+    let insideQuotes = false;
+
+    for (let i = 0; i < text.length; i++) {
+        const char = text[i];
+        const nextChar = text[i + 1];
+
+        if (char === '"') {
+            if (insideQuotes && nextChar === '"') {
+                currentValue += '"';
+                i++;
+            } else {
+                insideQuotes = !insideQuotes;
+            }
+        } else if (char === "," && !insideQuotes) {
+            currentRow.push(currentValue.trim());
+            currentValue = "";
+        } else if ((char === "\n" || char === "\r") && !insideQuotes) {
+            if (char === "\r" && nextChar === "\n") i++;
+            currentRow.push(currentValue.trim());
+            if (currentRow.some(c => c !== "")) rows.push(currentRow);
+            currentRow = [];
+            currentValue = "";
+        } else {
+            currentValue += char;
+        }
+    }
+    if (currentRow.length > 0 || currentValue !== "") {
+        currentRow.push(currentValue.trim());
+        if (currentRow.some(c => c !== "")) rows.push(currentRow);
+    }
+    return rows;
+}
+
+// =====================================================================
+//  LOAD FROM GOOGLE SHEETS
+// =====================================================================
+async function loadLiveGSData() {
+    const statusDot = document.getElementById('connectionStatus');
+    statusDot.title = 'Fetching live data...';
+    
+    try {
+        // Parallel fetch for speed
+        const [resHanuman, resConsultants] = await Promise.all([
+            fetch(FETCH_URL_HANUMAN).then(r => r.text()),
+            fetch(FETCH_URL_CONSULTANTS).then(r => r.text())
+        ]);
+
+        const rowsHanuman = parseCSV(resHanuman);
+        const rowsConsultants = parseCSV(resConsultants);
+
+        // Map Consultants
+        // Headers: Batch | Participants | Contat detail
+        allConsultants = rowsConsultants.slice(1).map(r => ({
+            name:  r[1] || '',
+            batch: r[0] || 'General',
+            phone: r[2] || ''
+        })).filter(c => c.name);
+
+        // Map Hanuman requests
+        // Headers: S.No | Name | Number | Gender | DOB | Time | Place | Consultation type | Query 1 | Query 2 | Consulatant | Consulatnt foundation | Status | First Prefencesence
+        allData = rowsHanuman.slice(1).map((r, idx) => ({
+            id:            'h' + (r[0] || idx),
+            rowNum:        r[0] || String(idx + 1),
+            campaign:      'Hanuman Jayanti',
+            clientName:    r[1] || '',
+            phone:         String(r[2] || '').trim(),
+            gender:        r[3] || '',
+            dob:           r[4] || '',
+            time:          r[5] || '',
+            place:         r[6] || '',
+            package_:      r[7] || '',
+            concern:       r[8] || '',
+            queryDetail:   r[9] || '',
+            consultant:    r[10] || '',
+            foundation:    r[11] || '',
+            status:        r[12] || 'Pending',
+            firstPref:     r[13] || '',
+            // Placeholders for missing fields in this specific sheet
+            email:         '',
+            clientType:    '',
+            heardVia:      '',
+            paymentMethod: '',
+            screenshotUrl: '',
+        })).filter(r => r.clientName);
+
+        statusDot.classList.remove('offline');
+        statusDot.title = `Live Sync Active — ${allData.length} Hanuman records`;
+        
+        refreshAll();
+        showToast('Synced ' + allData.length + ' records from Google Sheets', 'success');
+
+    } catch (error) {
+        console.error('GS Sync Error:', error);
+        statusDot.classList.add('offline');
+        statusDot.title = 'Sync failed: ' + error.message;
+        showToast('Sync failed: Check console for CORS or sharing issues', 'error');
+    }
+}
 
 // =====================================================================
 //  NAVIGATION
@@ -65,54 +184,6 @@ function setupNavigation() {
 }
 
 // =====================================================================
-//  LOAD FROM data.js  (XLSX_DATA global)
-// =====================================================================
-function loadXLSXData() {
-    if (typeof XLSX_DATA === 'undefined') {
-        showToast('data.js not found — run: node generate-data.js', 'error');
-        document.getElementById('connectionStatus').classList.add('offline');
-        document.getElementById('connectionStatus').title = 'data.js missing';
-        return;
-    }
-
-    // Responses — data.js already has clean pre-mapped fields
-    allData = (XLSX_DATA.responses || []).map(r => ({
-        id:            r.id          || '',
-        rowNum:        r.rowNum      || '',
-        campaign:      r.Campaign    || r.campaign || 'General',
-        clientName:    r.clientName  || '',
-        phone:         String(r.phone || '').trim(),
-        gender:        r.gender      || '',
-        dob:           r.dob         || '',
-        time:          r.time        || '',
-        place:         r.place       || '',
-        package_:      r.package     || '',
-        concern:       r.concern     || '',
-        queryDetail:   r.queryDetail || '',
-        consultant:    r.consultant  || '',
-        foundation:    r.foundation  || '',
-        firstPref:     r.firstPref   || '',
-        status:        r.status      || 'Pending',
-        email:         r.email       || '',
-        clientType:    r.clientType  || '',
-        heardVia:      r.heardVia    || '',
-        paymentMethod: r.payment     || '',
-        screenshotUrl: r.screenshot  || '',
-    })).filter(r => r.clientName);
-
-    // Consultants
-    allConsultants = (XLSX_DATA.consultants || [])
-        .map(c => ({ name: c.name || '', batch: c.batch || 'General', phone: c.phone || '' }))
-        .filter(c => c.name);
-
-    document.getElementById('connectionStatus').classList.remove('offline');
-    document.getElementById('connectionStatus').title = `XLSX loaded — ${allData.length} records`;
-
-    refreshAll();
-    showToast('Loaded ' + allData.length + ' records from XLSX', 'success');
-}
-
-// =====================================================================
 //  REFRESH
 // =====================================================================
 function refreshAll() {
@@ -133,14 +204,12 @@ function updateStats() {
     const done    = data.filter(d => d.status === 'Done').length;
     const pending = data.filter(d => ['Pending','Allocated'].includes(d.status)).length;
     const dnp     = data.filter(d => ['DNP','Refund'].includes(d.status)).length;
-    const makar   = data.filter(d => d.campaign === 'Makar Sankranti').length;
-    const hanuman = data.filter(d => d.campaign === 'Hanuman Jayanti').length;
 
     document.getElementById('totalRequests').textContent     = total;
     document.getElementById('completedRequests').textContent = done;
     document.getElementById('pendingAssignments').textContent = pending;
     document.getElementById('dnpCount').textContent          = dnp;
-    document.getElementById('statCampaignBreak').textContent = 'Makar: ' + makar + ' · Hanuman: ' + hanuman;
+    document.getElementById('statCampaignBreak').textContent = 'Hanuman Jayanti Special';
 }
 
 function updateSidebarBadge() {
@@ -190,10 +259,7 @@ function makeStatusBadge(status) {
 }
 
 function makeCampaignBadge(campaign) {
-    const isMakar = campaign.includes('Makar');
-    const cls   = isMakar ? 'badge-makar' : campaign.includes('Hanuman') ? 'badge-hanuman' : 'badge-general';
-    const label = isMakar ? 'Makar'       : campaign.includes('Hanuman') ? 'Hanuman'       : 'General';
-    return '<span class="badge campaign-badge ' + cls + '">' + label + '</span>';
+    return '<span class="badge campaign-badge badge-hanuman">Hanuman</span>';
 }
 
 function renderRecentTable() {
@@ -337,8 +403,8 @@ window.openDetailModal = function(id) {
     document.getElementById('modalContact').textContent = '📞 ' + (item.phone || '—') + ' · ✉️ ' + (item.email || '—');
 
     const campBadge = document.getElementById('modalCampaignBadge');
-    campBadge.textContent = item.campaign.includes('Makar') ? '🪁 Makar Sankranti' : '🚩 Hanuman Jayanti';
-    campBadge.className   = 'badge campaign-badge ' + (item.campaign.includes('Makar') ? 'badge-makar' : 'badge-hanuman');
+    campBadge.textContent = '🚩 Hanuman Jayanti';
+    campBadge.className   = 'badge campaign-badge badge-hanuman';
 
     const sMap = { Done:'badge-done', Allocated:'badge-allocated', Pending:'badge-pending', DNP:'badge-dnp', Refund:'badge-refund', 'Allotment Changed':'badge-allotment' };
     const sBadge = document.getElementById('modalStatusBadge');
@@ -384,17 +450,58 @@ window.closeModal = function() {
     currentEditingId = null;
 };
 
-window.saveAssignment = function() {
+// =====================================================================
+//  SYNC UTILITY (Updates back to GS)
+// =====================================================================
+async function syncToGS(data) {
+    if (!SYNC_URL) return { success: false, error: 'No Sync URL' };
+    try {
+        const response = await fetch(SYNC_URL, {
+            method: 'POST',
+            body: JSON.stringify(data)
+        });
+        return await response.json();
+    } catch (e) {
+        console.error('Sync Error:', e);
+        return { success: false, error: e.message };
+    }
+}
+
+window.saveAssignment = async function() {
     if (!currentEditingId) return;
     const idx = allData.findIndex(d => d.id === currentEditingId);
     if (idx < 0) return;
-    allData[idx].consultant = document.getElementById('consultantSelect').value;
-    allData[idx].foundation = document.getElementById('foundationSelect').value;
-    allData[idx].firstPref  = document.getElementById('firstPreferenceInput').value;
-    allData[idx].status     = document.getElementById('statusSelect').value;
-    showToast('Saved for ' + allData[idx].clientName, 'success');
-    updateStats(); renderMainTable(); renderRecentTable(); renderConsultantViews(); updateSidebarBadge();
-    closeModal();
+    
+    const btn = document.getElementById('saveUpdatesBtn');
+    const oldText = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<span>⏳ Syncing...</span>';
+
+    const payload = {
+        action: 'updateAssignment',
+        rowNum: allData[idx].rowNum,
+        consultant: document.getElementById('consultantSelect').value,
+        foundation: document.getElementById('foundationSelect').value,
+        firstPref:  document.getElementById('firstPreferenceInput').value,
+        status:     document.getElementById('statusSelect').value
+    };
+
+    const result = await syncToGS(payload);
+    
+    if (result.success || !SYNC_URL) {
+        allData[idx].consultant = payload.consultant;
+        allData[idx].foundation = payload.foundation;
+        allData[idx].firstPref  = payload.firstPref;
+        allData[idx].status     = payload.status;
+        showToast(SYNC_URL ? 'Saved and Synced to Sheet' : 'Saved locally (Sync disabled)', 'success');
+        updateStats(); renderMainTable(); renderRecentTable(); renderConsultantViews(); updateSidebarBadge();
+        closeModal();
+    } else {
+        showToast('Sync Failed: Check Apps Script deployment', 'error');
+    }
+    
+    btn.disabled = false;
+    btn.innerHTML = oldText;
 };
 
 window.copyClientInfo = function() {
@@ -427,18 +534,33 @@ document.getElementById('addConsultantModal')?.addEventListener('click', e => {
     if (e.target === document.getElementById('addConsultantModal')) closeAddConsultantModal();
 });
 
-window.saveNewConsultant = function() {
+window.saveNewConsultant = async function() {
     const name  = document.getElementById('newConsultantName').value.trim();
     const batch = document.getElementById('newConsultantBatch').value.trim();
     const phone = document.getElementById('newConsultantPhone').value.trim();
     const statusEl = document.getElementById('consultantAddStatus');
+    
     if (!name) { statusEl.textContent = 'Please enter a name.'; statusEl.style.color = 'var(--danger)'; return; }
-    allConsultants.push({ name, batch: batch||'General', phone });
-    renderConsultantViews(); updateConsultantFilter();
-    showToast(name + ' added', 'success');
-    statusEl.textContent  = 'Added! (To persist: add to XLSX and re-run generate-data.js)';
-    statusEl.style.color  = 'var(--success)';
-    setTimeout(closeAddConsultantModal, 1800);
+
+    statusEl.textContent = 'Syncing to Sheet...';
+    statusEl.style.color = 'var(--info)';
+
+    const result = await syncToGS({
+        action: 'addConsultant',
+        name, batch: batch || 'General', phone
+    });
+
+    if (result.success || !SYNC_URL) {
+        allConsultants.push({ name, batch: batch||'General', phone });
+        renderConsultantViews(); updateConsultantFilter();
+        showToast(name + ' added to Sheet', 'success');
+        statusEl.textContent  = SYNC_URL ? 'Added to Google Sheet!' : 'Added locally (Sync disabled)';
+        statusEl.style.color  = 'var(--success)';
+        setTimeout(closeAddConsultantModal, 1800);
+    } else {
+        statusEl.textContent = 'Failed to sync. Check SYNC_URL.';
+        statusEl.style.color = 'var(--danger)';
+    }
 };
 
 // =====================================================================

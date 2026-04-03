@@ -160,7 +160,6 @@
                         <div class="filters-row">
                             <select id="campaignFilter">
                                 <option value="all">🌐 All Campaigns</option>
-                                <option value="Makar Sankranti">🪁 Makar Sankranti</option>
                                 <option value="Hanuman Jayanti">🚩 Hanuman Jayanti</option>
                             </select>
                             <select id="statusFilter">
@@ -359,12 +358,12 @@
                         <div class="form-group">
                             <label for="statusSelect">Update Status</label>
                             <select id="statusSelect">
-                                <option value="Pending">⏳ Pending Assignment</option>
+                                <option value="" disabled>-- Select Status --</option>
                                 <option value="Allocated">🔄 Allocated</option>
-                                <option value="Done">✅ Consultation Done</option>
-                                <option value="DNP">❌ DNP (Did Not Proceed)</option>
-                                <option value="Refund">💸 Refund</option>
+                                <option value="Done">✅ Done</option>
+                                <option value="DNP">❌ DNP</option>
                                 <option value="Allotment Changed">🔀 Allotment Changed</option>
+                                <option value="Refund">💸 Refund</option>
                             </select>
                         </div>
 
@@ -409,7 +408,6 @@
     <!-- Toast Notification -->
     <div class="toast" id="toast"></div>
 
-    <script src="data.js"></script>
     <script src="script.js?v=5"></script>
 </body>
 </html>
