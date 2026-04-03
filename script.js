@@ -17,8 +17,8 @@ let currentEditingId = null;
 let searchQuery = '';
 
 const GS_ID = '1SpdyxWW0cHxDUUuy6VrquASgBjucEpFAFPJuuXuSKNU';
-const FETCH_URL_HANUMAN = `https://docs.google.com/spreadsheets/d/${GS_ID}/gviz/tq?tqx=out:csv&sheet=Assignee%20of%20Hanuman`;
-const FETCH_URL_CONSULTANTS = `https://docs.google.com/spreadsheets/d/${GS_ID}/gviz/tq?tqx=out:csv&sheet=Consultant_List`;
+const FETCH_URL_HANUMAN = `https://docs.google.com/spreadsheets/d/${GS_ID}/gviz/tq?tqx=out:csv&sheet=Assignee%20of%20Hanuman&headers=1`;
+const FETCH_URL_CONSULTANTS = `https://docs.google.com/spreadsheets/d/${GS_ID}/gviz/tq?tqx=out:csv&sheet=Consultant_List&headers=1`;
 
 // --- SYNC API URL ---
 // Paste your Web App URL from 'Extensions > Apps Script > Deploy' here to enable BI-DIRECTIONAL SYNC
@@ -93,31 +93,22 @@ async function loadLiveGSData() {
     statusDot.title = 'Fetching live data...';
     
     try {
-        // Parallel fetch for speed + Cache-busting with Date.now()
-        const t = Date.now();
+        // Parallel fetch for speed
         const [resHanuman, resConsultants] = await Promise.all([
-            fetch(FETCH_URL_HANUMAN + '&t=' + t).then(r => r.text()),
-            fetch(FETCH_URL_CONSULTANTS + '&t=' + t).then(r => r.text())
+            fetch(FETCH_URL_HANUMAN, { cache: "no-store" }).then(r => r.text()),
+            fetch(FETCH_URL_CONSULTANTS, { cache: "no-store" }).then(r => r.text())
         ]);
 
         const rowsHanuman = parseCSV(resHanuman);
         const rowsConsultants = parseCSV(resConsultants);
 
-        // Map Consultants - MORE ROBUST MAPPING
-        allConsultants = rowsConsultants
-            .filter(r => r.length >= 2) // Must have at least name and batch
-            .map(r => ({
-                name:  String(r[1] || '').trim(),
-                batch: String(r[0] || '').trim(),
-                phone: String(r[2] || '').trim()
-            }))
-            .filter(c => {
-                // Skip headers, empty rows, and meta-data
-                const n = c.name.toLowerCase();
-                if (!n || n === 'participants' || n === 'participant' || n === 'participant name') return false;
-                if (n.includes('contat detail') || n.includes('batch')) return false;
-                return true;
-            });
+        // Map Consultants
+        // Headers: Batch | Participants | Contat detail
+        allConsultants = rowsConsultants.slice(1).map(r => ({
+            name:  r[1] || '',
+            batch: r[0] || 'General',
+            phone: r[2] || ''
+        })).filter(c => c.name);
 
         // Map Hanuman requests
         // Headers: S.No | Name | Number | Gender | DOB | Time | Place | Consultation type | Query 1 | Query 2 | Consulatant | Consulatnt foundation | Status | First Prefencesence
