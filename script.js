@@ -33,6 +33,7 @@ document.addEventListener('DOMContentLoaded', () => {
     setupSearch();
     setupModal();
     loadLiveGSData();
+    setupMobileMenu();
     
     if (!SYNC_URL) {
         console.warn('SYNC_URL is missing. Changes will be local-only. Follow SYNC_SETUP.md.');
@@ -578,4 +579,33 @@ function showToast(msg, type) {
     t.className   = 'toast show ' + (type||'info');
     clearTimeout(toastTimer);
     toastTimer = setTimeout(() => t.classList.remove('show'), 3200);
+}
+// =====================================================================
+//  MOBILE MENU
+// =====================================================================
+function setupMobileMenu() {
+    const toggle = document.getElementById('mobileToggle');
+    const sidebar = document.getElementById('sidebar');
+    const overlay = document.getElementById('sidebarOverlay');
+    
+    if (!toggle || !sidebar || !overlay) return;
+    
+    const toggleMenu = () => {
+        sidebar.classList.toggle('open');
+        overlay.classList.toggle('open');
+        // Prevent body scroll when menu open
+        document.body.style.overflow = sidebar.classList.contains('open') ? 'hidden' : '';
+    };
+    
+    toggle.addEventListener('click', toggleMenu);
+    overlay.addEventListener('click', toggleMenu);
+    
+    // Close on link click
+    document.querySelectorAll('.nav-link').forEach(link => {
+        link.addEventListener('click', () => {
+            if (window.innerWidth <= 900) {
+                toggleMenu();
+            }
+        });
+    });
 }
