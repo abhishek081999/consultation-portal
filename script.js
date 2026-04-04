@@ -128,8 +128,9 @@ async function loadLiveGSData() {
             queryDetail:   r[9] || '',
             consultant:    r[10] || '',
             foundation:    r[11] || '',
-            status:        r[12] || 'Pending',
-            firstPref:     r[13] || '',
+            foundation2:   r[12] || '',
+            status:        r[13] || 'Pending',
+            firstPref:     r[14] || '',
             // Placeholders for missing fields in this specific sheet
             email:         '',
             clientType:    '',
@@ -225,11 +226,14 @@ function getFilteredData() {
     return allData.filter(item => {
         if (currentCampaignFilter !== 'all' && item.campaign !== currentCampaignFilter) return false;
         if (currentFilter !== 'all' && item.status !== currentFilter) return false;
-        if (currentConsultantFilter !== 'all' && item.consultant !== currentConsultantFilter) return false;
+        if (currentConsultantFilter !== 'all' && 
+            item.consultant !== currentConsultantFilter && 
+            item.foundation !== currentConsultantFilter &&
+            item.foundation2 !== currentConsultantFilter) return false;
         if (currentGenderFilter !== 'all' && item.gender.toLowerCase() !== currentGenderFilter.toLowerCase()) return false;
         if (searchQuery) {
             const q = searchQuery.toLowerCase();
-            const hay = [item.clientName, item.phone, item.email, item.concern, item.place, item.consultant].join(' ').toLowerCase();
+            const hay = [item.clientName, item.phone, item.email, item.concern, item.place, item.consultant, item.foundation, item.foundation2].join(' ').toLowerCase();
             if (!hay.includes(q)) return false;
         }
         return true;
@@ -276,7 +280,9 @@ function renderRecentTable() {
         '<td style="color:var(--text-muted)">' + escHtml((row.concern||'').substring(0,30)) + '</td>' +
         '<td style="color:var(--text-faint);font-size:0.8rem">' + escHtml(row.package_||'—') + '</td>' +
         '<td>' + makeStatusBadge(row.status) + '</td>' +
-        '<td>' + (row.consultant ? '<span style="color:var(--primary)">' + escHtml(row.consultant) + '</span>' : '<em style="color:var(--text-faint)">Unassigned</em>') + '</td>' +
+        '<td>' + (row.consultant ? '<span style="color:var(--primary)">' + escHtml(row.consultant) + '</span>' : '<em style="color:var(--text-faint)">Unassigned</em>') + 
+                 (row.foundation ? '<div style="font-size:0.7rem;color:var(--text-faint)">+ ' + escHtml(row.foundation) + '</div>' : '') + 
+                 (row.foundation2 ? '<div style="font-size:0.7rem;color:var(--text-faint)">+ ' + escHtml(row.foundation2) + '</div>' : '') + '</td>' +
         '<td><button class="action-btn" onclick="openDetailModal(\'' + escHtml(row.id) + '\')">View</button></td>' +
         '</tr>'
     ).join('');
@@ -302,7 +308,8 @@ function renderMainTable() {
         '<td style="color:var(--text-muted);font-size:0.82rem">' + escHtml(row.dob||'—') + '</td>' +
         '<td>' + makeStatusBadge(row.status) + '</td>' +
         '<td>' + (row.consultant ? '<span style="color:var(--primary);font-weight:500">' + escHtml(row.consultant) + '</span>' : '<em style="color:var(--text-faint)">Unassigned</em>') +
-                 (row.foundation  ? '<div style="font-size:0.72rem;color:var(--text-faint)">+ ' + escHtml(row.foundation) + '</div>' : '') + '</td>' +
+                 (row.foundation  ? '<div style="font-size:0.72rem;color:var(--text-faint)">+ ' + escHtml(row.foundation) + '</div>' : '') + 
+                 (row.foundation2 ? '<div style="font-size:0.72rem;color:var(--text-faint)">+ ' + escHtml(row.foundation2) + '</div>' : '') + '</td>' +
         '<td><button class="action-btn" onclick="openDetailModal(\'' + escHtml(row.id) + '\')">View &amp; Assign</button></td>' +
         '</tr>'
     ).join('');
@@ -319,7 +326,7 @@ function renderConsultantViews() {
             summaryGrid.innerHTML = '<p style="color:var(--text-muted);font-size:0.9rem">No consultant data.</p>';
         } else {
             summaryGrid.innerHTML = allConsultants.map(c => {
-                const rows  = allData.filter(d => d.consultant === c.name || d.foundation === c.name);
+                const rows  = allData.filter(d => d.consultant === c.name || d.foundation === c.name || d.foundation2 === c.name);
                 const done  = rows.filter(d => d.status === 'Done').length;
                 return '<div class="consultant-mini-card">' +
                     '<div class="cmc-name">' + escHtml(c.name) + '</div>' +
@@ -340,7 +347,7 @@ function renderConsultantViews() {
         } else {
             cardsGrid.innerHTML = allConsultants.map(c => {
                 const initials = c.name.split(' ').map(w => w[0]||'').join('').substring(0,2).toUpperCase();
-                const done     = allData.filter(d => (d.consultant===c.name||d.foundation===c.name) && d.status==='Done').length;
+                const done     = allData.filter(d => (d.consultant===c.name||d.foundation===c.name||d.foundation2===c.name) && d.status==='Done').length;
                 return '<div class="consultant-card">' +
                     '<div class="cc-avatar">' + initials + '</div>' +
                     '<div style="flex:1"><div class="cc-name">' + escHtml(c.name) + '</div><div class="cc-batch">' + escHtml(c.batch) + '</div></div>' +
@@ -358,7 +365,7 @@ function renderConsultantViews() {
             statsBody.innerHTML = '<tr><td colspan="6" class="empty-state">No data</td></tr>';
         } else {
             statsBody.innerHTML = allConsultants.map(c => {
-                const rows      = allData.filter(d => d.consultant===c.name || d.foundation===c.name);
+                const rows      = allData.filter(d => d.consultant===c.name || d.foundation===c.name || d.foundation2===c.name);
                 const done      = rows.filter(d => d.status==='Done').length;
                 const allocated = rows.filter(d => d.status==='Allocated').length;
                 const dnpRef    = rows.filter(d => ['DNP','Refund'].includes(d.status)).length;
@@ -432,14 +439,17 @@ window.openDetailModal = function(id) {
 
     const cSel = document.getElementById('consultantSelect');
     const fSel = document.getElementById('foundationSelect');
+    const aSel = document.getElementById('additionalConsultantSelect');
     cSel.innerHTML = '<option value="">— Unassigned —</option>';
     fSel.innerHTML = '<option value="">— None —</option>';
+    aSel.innerHTML = '<option value="">— None —</option>';
     allConsultants.forEach(c => {
         const opt = '<option value="' + escHtml(c.name) + '">' + escHtml(c.name) + ' (' + escHtml(c.batch) + ')</option>';
-        cSel.innerHTML += opt; fSel.innerHTML += opt;
+        cSel.innerHTML += opt; fSel.innerHTML += opt; aSel.innerHTML += opt;
     });
     cSel.value = item.consultant || '';
     fSel.value = item.foundation || '';
+    aSel.value = item.foundation2 || '';
     document.getElementById('firstPreferenceInput').value = item.firstPref || '';
     document.getElementById('statusSelect').value = item.status;
 
@@ -483,6 +493,7 @@ window.saveAssignment = async function() {
         rowNum: allData[idx].rowNum,
         consultant: document.getElementById('consultantSelect').value,
         foundation: document.getElementById('foundationSelect').value,
+        foundation2: document.getElementById('additionalConsultantSelect').value,
         firstPref:  document.getElementById('firstPreferenceInput').value,
         status:     document.getElementById('statusSelect').value
     };
@@ -492,6 +503,7 @@ window.saveAssignment = async function() {
     if (result.success || !SYNC_URL) {
         allData[idx].consultant = payload.consultant;
         allData[idx].foundation = payload.foundation;
+        allData[idx].foundation2 = payload.foundation2;
         allData[idx].firstPref  = payload.firstPref;
         allData[idx].status     = payload.status;
         showToast(SYNC_URL ? 'Saved and Synced to Sheet' : 'Saved locally (Sync disabled)', 'success');

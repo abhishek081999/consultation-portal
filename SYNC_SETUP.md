@@ -36,11 +36,12 @@ function doPost(e) {
     for (var i = 1; i < values.length; i++) {
         // Find row by matching S.No (or name/phone if S.No is missing)
       if (String(values[i][0]).trim() === String(data.rowNum).trim()) {
-        // Col K (11): Consultant, Col L (12): Foundation, Col M (13): Status, Col N (14): First Pref
+        // Col K (11): Consultant, Col L (12): Foundation, Col M (13): Foundation 2, Col N (14): Status, Col O (15): First Pref
         sheet.getRange(i + 1, 11).setValue(data.consultant); 
         sheet.getRange(i + 1, 12).setValue(data.foundation);
-        sheet.getRange(i + 1, 13).setValue(data.status);
-        sheet.getRange(i + 1, 14).setValue(data.firstPref);
+        sheet.getRange(i + 1, 13).setValue(data.foundation2);
+        sheet.getRange(i + 1, 14).setValue(data.status);
+        sheet.getRange(i + 1, 15).setValue(data.firstPref);
         success = true;
         break;
       }
