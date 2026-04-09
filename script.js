@@ -213,6 +213,12 @@ function setupNavigation() {
         if (view === 'requests')    renderMainTable();
         if (view === 'dashboard')   { updateStats(); renderRecentTable(); renderConsultantViews(); }
         if (view === 'my-consultations') renderMyConsultations();
+
+        // Mobile: Close menu after selection
+        if (window.innerWidth <= 900) {
+            document.getElementById('sidebar')?.classList.remove('open');
+            document.querySelector('.sidebar-overlay')?.classList.remove('open');
+        }
     };
 }
 
