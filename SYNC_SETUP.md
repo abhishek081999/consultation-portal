@@ -13,7 +13,7 @@ Go to the spreadsheet at: [https://docs.google.com/spreadsheets/d/1SpdyxWW0cHxDU
 /**
  * JYOTISH PORTAL SYNC SCRIPT
  * This script handles updates from the JS dashboard.
- * Created for: 1SpdyxWW0cHxDUUuy6VrquASgBjucEpFAFPJuuXuSKNU
+ * It dynamically finds columns to handle inconsistent sheet layouts.
  */
 
 function doPost(e) {
@@ -29,27 +29,82 @@ function doPost(e) {
   // ACTION: Update Assignment
   if (data.action === "updateAssignment") {
     var sheet = ss.getSheetByName("Assignee of Hanuman");
-    var values = sheet.getDataRange().getValues();
-    var success = false;
+    if (!sheet) return createResponse({success: false, error: "Sheet not found"});
     
-    // Find row by S.No (Column A)
+    var headers = sheet.getRange(1, 1, 1, Math.max(15, sheet.getLastColumn())).getValues()[0];
+    var colMap = {};
+    var lastHeaderCol = 0;
+    headers.forEach(function(h, i) { 
+      var name = String(h).toLowerCase().trim();
+      if (name) lastHeaderCol = i + 1;
+      if (name.includes("s.no") || name === "column 1") colMap.sno = i + 1;
+      if (name === "consulatant") colMap.consultant = i + 1;
+      if (name === "consulatnt foundation") {
+        if (!colMap.foundation1) colMap.foundation1 = i + 1;
+        else colMap.foundation2 = i + 1;
+      }
+      if (name === "status") colMap.status = i + 1;
+      if (name.includes("first pref")) colMap.firstPref = i + 1;
+      if (name === "feedback" || name === "feedback rating") colMap.feedback = i + 1;
+      if (name === "notes" || name.includes("consultation notes")) colMap.notes = i + 1;
+    });
+
+    // Ensure columns for Feedback and Notes exist within the active range
+    if (!colMap.feedback) {
+       var newCol = lastHeaderCol + 1;
+       sheet.getRange(1, newCol).setValue("Feedback Rating").setFontWeight("bold");
+       colMap.feedback = newCol;
+       lastHeaderCol = newCol;
+    }
+    if (!colMap.notes) {
+       var newCol = lastHeaderCol + 1;
+       sheet.getRange(1, newCol).setValue("Consultation Notes").setFontWeight("bold");
+       colMap.notes = newCol;
+    }
+
+    var values = sheet.getDataRange().getValues();
+    var rowIdx = -1;
+    var targetSno = String(data.rowNum).trim();
+    
+    // Safety check: Prevent status keywords from leaking into consultant/foundation columns
+    var statusLabels = ['done', 'allocated', 'pending', 'dnp', 'refund', 'allotment changed'];
+    function clean(val) {
+       if (!val) return "";
+       if (statusLabels.includes(String(val).toLowerCase().trim())) return "";
+       return val;
+    }
+
     for (var i = 1; i < values.length; i++) {
-        // Find row by matching S.No (or name/phone if S.No is missing)
-      if (String(values[i][0]).trim() === String(data.rowNum).trim()) {
-        // Col K (11): Consultant, Col L (12): Foundation, Col M (13): Foundation 2, Col N (14): Status, Col O (15): First Pref
-        sheet.getRange(i + 1, 11).setValue(data.consultant); 
-        sheet.getRange(i + 1, 12).setValue(data.foundation);
-        sheet.getRange(i + 1, 13).setValue(data.foundation2);
-        sheet.getRange(i + 1, 14).setValue(data.status);
-        sheet.getRange(i + 1, 15).setValue(data.firstPref);
-        success = true;
+      if (String(values[i][0]).trim() === targetSno) {
+        rowIdx = i + 1;
+        if (colMap.consultant)  sheet.getRange(rowIdx, colMap.consultant).setValue(clean(data.consultant));
+        if (colMap.foundation1) sheet.getRange(rowIdx, colMap.foundation1).setValue(clean(data.foundation));
+        if (colMap.foundation2) sheet.getRange(rowIdx, colMap.foundation2).setValue(clean(data.foundation2));
+        if (colMap.status)      sheet.getRange(rowIdx, colMap.status).setValue(data.status);
+        if (colMap.firstPref)   sheet.getRange(rowIdx, colMap.firstPref).setValue(data.firstPref);
+        
+        if (data.feedback !== undefined && colMap.feedback) sheet.getRange(rowIdx, colMap.feedback).setValue(data.feedback);
+        if (data.notes !== undefined && colMap.notes)    sheet.getRange(rowIdx, colMap.notes).setValue(data.notes);
+        
         break;
       }
     }
-    return createResponse({success: success});
+
+    // 2. Logging to "Consultant_Feedback" (Separate Sheet)
+    if (data.feedback || data.notes) {
+      var fbSheet = ss.getSheetByName("Consultant_Feedback");
+      if (!fbSheet) {
+        fbSheet = ss.insertSheet("Consultant_Feedback");
+        fbSheet.appendRow(["Timestamp", "S.No", "Client Name", "Consultant", "Status", "Feedback Rating", "Detailed Notes"]);
+        fbSheet.getRange(1, 1, 1, 7).setFontWeight("bold").setBackground("#f3f3f3");
+      }
+      var clientName = rowIdx > 0 ? sheet.getRange(rowIdx, 2).getValue() : "Unknown";
+      fbSheet.appendRow([new Date(), data.rowNum, clientName, data.consultant || "Self", data.status, data.feedback, data.notes]);
+    }
+    
+    return createResponse({success: rowIdx > 0});
   }
   
-  // ACTION: Add Consultant
   if (data.action === "addConsultant") {
     var sheet = ss.getSheetByName("Consultant_List");
     sheet.appendRow([data.batch, data.name, data.phone]);
@@ -60,8 +115,7 @@ function doPost(e) {
 }
 
 function createResponse(obj) {
-  return ContentService.createTextOutput(JSON.stringify(obj))
-    .setMimeType(ContentService.MimeType.JSON);
+  return ContentService.createTextOutput(JSON.stringify(obj)).setMimeType(ContentService.MimeType.JSON);
 }
 
 function doGet(e) {

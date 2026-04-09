@@ -9,7 +9,30 @@
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <div class="app-layout">
+    <!-- Login Screen Overlay -->
+    <div id="login-screen" class="login-overlay">
+        <div class="login-card">
+            <div class="login-logo">
+                <div class="logo-icon">🔮</div>
+                <h1>Jyotish <span>Portal</span></h1>
+                <p>Consultant & Admin Login</p>
+            </div>
+            <form id="login-form" class="login-form">
+                <div class="form-group">
+                    <label for="username">Username (Full Name)</label>
+                    <input type="text" id="username" placeholder="Enter your name" required>
+                </div>
+                <div class="form-group">
+                    <label for="password">Password</label>
+                    <input type="password" id="password" placeholder="Enter password (same as name)" required>
+                </div>
+                <button type="submit" class="primary-btn login-btn">Sign In</button>
+                <p id="login-error" class="login-error-msg"></p>
+            </form>
+        </div>
+    </div>
+
+    <div class="app-layout" id="app-layout" style="display: none;">
 
         <!-- Sidebar -->
         <aside class="sidebar" id="sidebar">
@@ -22,19 +45,19 @@
             </div>
 
             <nav class="nav-menu">
-                <div class="nav-section-label">MAIN</div>
-                <a href="#" class="nav-link active" data-view="dashboard" id="nav-dashboard">
+                <div class="nav-section-label only-admin">MAIN</div>
+                <a href="#" class="nav-link active only-admin" data-view="dashboard" id="nav-dashboard">
                     <span class="nav-icon">📊</span>
                     <span>Dashboard</span>
                 </a>
-                <a href="#" class="nav-link" data-view="requests" id="nav-requests">
+                <a href="#" class="nav-link only-admin" data-view="requests" id="nav-requests">
                     <span class="nav-icon">📋</span>
                     <span>Consult Requests</span>
                     <span class="nav-badge" id="sidebarPendingCount">0</span>
                 </a>
 
-                <div class="nav-section-label" style="margin-top: 1.5rem;">MANAGEMENT</div>
-                <a href="#" class="nav-link" data-view="consultants" id="nav-consultants">
+                <div class="nav-section-label only-admin" style="margin-top: 1.5rem;">MANAGEMENT</div>
+                <a href="#" class="nav-link only-admin" data-view="consultants" id="nav-consultants">
                     <span class="nav-icon">👥</span>
                     <span>Consultants</span>
                 </a>
@@ -42,12 +65,13 @@
 
             <div class="sidebar-footer">
                 <div class="admin-info">
-                    <div class="admin-avatar">A</div>
+                    <div class="admin-avatar" id="userInitial">A</div>
                     <div>
-                        <p class="admin-name">Admin User</p>
-                        <p class="admin-role">Super Admin</p>
+                        <p class="admin-name" id="userNameDisplay">Admin User</p>
+                        <p class="admin-role" id="userRoleDisplay">Super Admin</p>
                     </div>
                 </div>
+                <button class="logout-btn" id="logoutBtn" title="Logout">🚪 Logout</button>
             </div>
         </aside>
 
@@ -211,29 +235,26 @@
                 </div>
             </div>
 
-            <!-- ===================== VIEW: CONSULTANTS ===================== -->
+            <!-- ===================== VIEW: CONSULTANTS (ADMIN ONLY) ===================== -->
             <div id="view-consultants" class="content-view" style="display:none;">
                 <div class="consultants-layout">
-                    <!-- Left: Consultant Cards -->
-                    <div>
-                        <div class="panel-header" style="padding: 0 0 1.5rem 0; border: none;">
-                            <div>
-                                <h2>Consultant Roster</h2>
-                                <p style="color: var(--text-muted); font-size: 0.9rem; margin-top: 0.25rem;">All registered consultants</p>
-                            </div>
-                            <button class="primary-btn small-btn" onclick="openAddConsultantModal()">+ Add Consultant</button>
+                    <!-- Left Column: Cards -->
+                    <div class="consultant-cards-side">
+                        <div class="section-header">
+                            <h3>Consultant Roster</h3>
+                            <button class="primary-btn btn-sm" onclick="showAddConsultantModal()">+ Add New</button>
                         </div>
-                        <div class="consultant-cards-grid" id="consultantCardsGrid">
-                            <div class="loading-state"><div class="spinner"></div><p>Loading...</p></div>
+                        <div id="consultantCardsGrid" class="consultant-cards-grid">
+                            <!-- Populated by JS -->
                         </div>
                     </div>
 
-                    <!-- Right: Stats per consultant -->
-                    <div>
-                        <div class="panel-header" style="padding: 0 0 1.5rem 0; border: none;">
-                            <h2>Assignments by Consultant</h2>
+                    <!-- Right Column: Stats Table -->
+                    <div class="consultant-stats-side">
+                        <div class="section-header">
+                            <h3>Activity Summary</h3>
                         </div>
-                        <div class="panel" id="consultantStatsPanel">
+                        <div class="panel">
                             <div class="table-responsive">
                                 <table class="data-table">
                                     <thead>
@@ -242,16 +263,58 @@
                                             <th>Batch</th>
                                             <th>Done</th>
                                             <th>Allocated</th>
-                                            <th>DNP/Refund</th>
+                                            <th>DNP</th>
                                             <th>Total</th>
                                         </tr>
                                     </thead>
                                     <tbody id="consultantStatsBody">
-                                        <tr><td colspan="6" class="empty-state"><div class="spinner"></div> Loading...</td></tr>
+                                        <!-- Populated by JS -->
                                     </tbody>
                                 </table>
                             </div>
                         </div>
+                    </div>
+                </div>
+            </div>
+
+
+            <!-- ===================== VIEW: CONSULTANT DASHBOARD ===================== -->
+            <div id="view-my-consultations" class="content-view" style="display:none;">
+                <div class="panel">
+                    <div class="panel-header">
+                        <div>
+                            <h2>My Assigned Consultations</h2>
+                            <p style="color: var(--text-muted); font-size: 0.9rem; margin-top: 0.25rem;">Showing consultations where you are assigned as Primary or Foundation consultant.</p>
+                        </div>
+                        <div class="filters-row">
+                            <select id="myStatusFilter">
+                                <option value="all">All Statuses</option>
+                                <option value="Allocated">🔄 Allocated</option>
+                                <option value="Done">✅ Done</option>
+                                <option value="Pending">⏳ Pending</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="table-responsive">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>#</th>
+                                    <th>Client</th>
+                                    <th>Campaign</th>
+                                    <th>Concern</th>
+                                    <th>DOB / POB</th>
+                                    <th>Your Role</th>
+                                    <th>Status</th>
+                                    <th>Feedback</th>
+                                    <th>Action</th>
+                                </tr>
+                            </thead>
+                            <tbody id="myConsultationsTableBody">
+                                <tr><td colspan="9" class="empty-state">No consultations assigned yet.</td></tr>
+                            </tbody>
+                        </table>
                     </div>
                 </div>
             </div>
@@ -363,7 +426,7 @@
                             <input type="text" id="firstPreferenceInput" placeholder="e.g. Sikha" class="text-input">
                         </div>
 
-                        <div class="form-group">
+                        <div class="form-group only-admin">
                             <label for="statusSelect">Update Status</label>
                             <select id="statusSelect">
                                 <option value="" disabled>-- Select Status --</option>
@@ -373,6 +436,26 @@
                                 <option value="Allotment Changed">🔀 Allotment Changed</option>
                                 <option value="Refund">💸 Refund</option>
                             </select>
+                        </div>
+
+                        <!-- Feedback Section (Visible to Consultants & Admin) -->
+                        <div class="feedback-section" id="feedbackSection">
+                            <div class="form-group">
+                                <label for="clientFeedbackSelect">Client Feedback Rating</label>
+                                <select id="clientFeedbackSelect">
+                                    <option value="">— Select Feedback —</option>
+                                    <option value="Very Happy">🤩 Very Happy</option>
+                                    <option value="Satisfied">😊 Satisfied</option>
+                                    <option value="Neutral">😐 Neutral</option>
+                                    <option value="Unsatisfied">☹️ Unsatisfied</option>
+                                    <option value="Refund Requested">💸 Refund Requested</option>
+                                </select>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="consultationNotes">Consultation Summary & Notes</label>
+                                <textarea id="consultationNotes" rows="6" placeholder="Write detailed notes about the consultation, remedies suggested, and client interaction..."></textarea>
+                            </div>
                         </div>
 
                         <button class="primary-btn save-btn" id="saveUpdatesBtn">

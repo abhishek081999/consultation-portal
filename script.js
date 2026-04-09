@@ -15,6 +15,8 @@ let currentConsultantFilter = 'all';
 let currentGenderFilter = 'all';
 let currentEditingId = null;
 let searchQuery = '';
+let currentUser = null; // { name, role }
+let currentMyStatusFilter = 'all';
 
 const GS_ID = '1SpdyxWW0cHxDUUuy6VrquASgBjucEpFAFPJuuXuSKNU';
 const FETCH_URL_HANUMAN = `https://docs.google.com/spreadsheets/d/${GS_ID}/gviz/tq?tqx=out:csv&sheet=Assignee%20of%20Hanuman&headers=1`;
@@ -22,19 +24,21 @@ const FETCH_URL_CONSULTANTS = `https://docs.google.com/spreadsheets/d/${GS_ID}/g
 
 // --- SYNC API URL ---
 // Paste your Web App URL from 'Extensions > Apps Script > Deploy' here to enable BI-DIRECTIONAL SYNC
-const SYNC_URL = "https://script.google.com/macros/s/AKfycbyOOi4TWEc8xR-V_0fk0EMm2C8FM3U_nh2FT_-vAqIzLL7dq8B3xWFFplEYlMl6uTEq6g/exec"; 
+const SYNC_URL = "https://script.google.com/macros/s/AKfycbyxTc04uW1GfIGehgQ4eo6iIyeP_v--GpRfID15zLAMJcUVVS8kw1qMYxBkhsc3kfLU5Q/exec"; 
 
 // =====================================================================
 //  INIT
 // =====================================================================
 document.addEventListener('DOMContentLoaded', () => {
+    setupLogin();
     setupNavigation();
     setupFilters();
     setupSearch();
     setupModal();
     loadLiveGSData();
     setupMobileMenu();
-    
+    checkAuth();
+
     if (!SYNC_URL) {
         console.warn('SYNC_URL is missing. Changes will be local-only. Follow SYNC_SETUP.md.');
     }
@@ -43,6 +47,12 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('refreshBtn').classList.add('spinning');
         loadLiveGSData();
         setTimeout(() => document.getElementById('refreshBtn').classList.remove('spinning'), 800);
+    });
+
+    document.getElementById('logoutBtn')?.addEventListener('click', handleLogout);
+    document.getElementById('myStatusFilter')?.addEventListener('change', e => {
+        currentMyStatusFilter = e.target.value;
+        renderMyConsultations();
     });
 });
 
@@ -112,32 +122,51 @@ async function loadLiveGSData() {
         })).filter(c => c.name);
 
         // Map Hanuman requests
-        // Headers: S.No | Name | Number | Gender | DOB | Time | Place | Consultation type | Query 1 | Query 2 | Consulatant | Consulatnt foundation | Status | First Prefencesence
-        allData = rowsHanuman.slice(1).map((r, idx) => ({
-            id:            'h' + (r[0] || idx),
-            rowNum:        r[0] || String(idx + 1),
-            campaign:      'Hanuman Jayanti',
-            clientName:    r[1] || '',
-            phone:         String(r[2] || '').trim(),
-            gender:        r[3] || '',
-            dob:           r[4] || '',
-            time:          r[5] || '',
-            place:         r[6] || '',
-            package_:      r[7] || '',
-            concern:       r[8] || '',
-            queryDetail:   r[9] || '',
-            consultant:    r[10] || '',
-            foundation:    r[11] || '',
-            foundation2:   r[12] || '',
-            status:        r[13] || 'Pending',
-            firstPref:     r[14] || '',
-            // Placeholders for missing fields in this specific sheet
-            email:         '',
-            clientType:    '',
-            heardVia:      '',
-            paymentMethod: '',
-            screenshotUrl: '',
-        })).filter(r => r.clientName);
+        // Headers: S.No | Name | Number | Gender | DOB | Time | Place | Type | Query 1 | Query 2 | Consultant | Foundation | Foundation 2 | Status | First Pref | Feedback | Notes
+        allData = rowsHanuman.slice(1).map((r, idx) => {
+            const statusLabels = ['Done', 'Allocated', 'DNP', 'Refund', 'Allotment Changed'];
+            
+            // Find status dynamically
+            let status = 'Pending';
+            for (let sIdx of [13, 12, 11]) {
+                let val = (r[sIdx] || '').trim();
+                if (statusLabels.includes(val)) { status = val; break; }
+            }
+
+            // Clean foundations so they don't contain status words
+            let f1 = (r[11] || '').trim();
+            let f2 = (r[12] || '').trim();
+            if (statusLabels.includes(f1)) f1 = '';
+            if (statusLabels.includes(f2)) f2 = '';
+
+            return {
+                id:            'h' + (r[0] || idx),
+                rowNum:        (r[0] || '').trim(),
+                campaign:      'Hanuman Jayanti',
+                clientName:    (r[1] || '').trim(),
+                phone:         String(r[2] || '').trim(),
+                gender:        (r[3] || '').trim(),
+                dob:           (r[4] || '').trim(),
+                time:          (r[5] || '').trim(),
+                place:         (r[6] || '').trim(),
+                package_:      (r[7] || '').trim(),
+                concern:       (r[8] || '').trim(),
+                queryDetail:   (r[9] || '').trim(),
+                consultant:    (r[10] || '').trim(),
+                foundation:    f1,
+                foundation2:   f2,
+                status:        status,
+                firstPref:     (r[14] || '').trim(),
+                feedback:      (r[15] || '').trim(),
+                notes:         (r[16] || '').trim(),
+                // Placeholders
+                email:         '',
+                clientType:    '',
+                heardVia:      '',
+                paymentMethod: '',
+                screenshotUrl: '',
+            };
+        }).filter(r => r.clientName);
 
         statusDot.classList.remove('offline');
         statusDot.title = `Live Sync Active — ${allData.length} Hanuman records`;
@@ -157,7 +186,7 @@ async function loadLiveGSData() {
 //  NAVIGATION
 // =====================================================================
 function setupNavigation() {
-    const pageTitles = { dashboard: 'Dashboard', requests: 'Consult Requests', consultants: 'Consultants' };
+    const pageTitles = { dashboard: 'Dashboard', requests: 'Consult Requests', consultants: 'Consultants', 'my-consultations': 'My Consultations' };
 
     document.querySelectorAll('.nav-link[data-view]').forEach(link => {
         link.addEventListener('click', e => {
@@ -179,10 +208,95 @@ function setupNavigation() {
         document.querySelectorAll('.content-view').forEach(v => v.style.display = 'none');
         document.getElementById('view-' + view).style.display = '';
         document.getElementById('pageTitle').textContent = pageTitles[view] || 'Admin';
+        
         if (view === 'consultants') renderConsultantViews();
         if (view === 'requests')    renderMainTable();
         if (view === 'dashboard')   { updateStats(); renderRecentTable(); renderConsultantViews(); }
+        if (view === 'my-consultations') renderMyConsultations();
     };
+}
+
+// =====================================================================
+//  LOGIN & AUTH
+// =====================================================================
+function setupLogin() {
+    const form = document.getElementById('login-form');
+    form.addEventListener('submit', e => {
+        e.preventDefault();
+        const username = document.getElementById('username').value.trim();
+        const password = document.getElementById('password').value.trim();
+        const errorEl  = document.getElementById('login-error');
+
+        if (!username) return;
+
+        // Simple auth as requested: Username = Password = Name
+        if (username.toLowerCase() === 'admin') {
+            handleLogin({ name: 'Admin', role: 'admin' });
+        } else if (username === password) {
+            handleLogin({ name: username, role: 'consultant' });
+        } else {
+            errorEl.textContent = 'Invalid credentials. Password must match Username.';
+        }
+    });
+}
+
+function handleLogin(user) {
+    currentUser = user;
+    localStorage.setItem('jyotish_user', JSON.stringify(user));
+    applyRoleUI();
+    document.getElementById('login-screen').style.display = 'none';
+    document.getElementById('app-layout').style.display = '';
+    
+    if (user.role === 'admin') {
+        switchView('dashboard');
+    } else {
+        switchView('my-consultations');
+    }
+    showToast('Welcome, ' + user.name + '!', 'success');
+}
+
+function handleLogout() {
+    currentUser = null;
+    localStorage.removeItem('jyotish_user');
+    document.getElementById('login-screen').style.display = '';
+    document.getElementById('app-layout').style.display = 'none';
+    document.body.className = '';
+}
+
+function checkAuth() {
+    const stored = localStorage.getItem('jyotish_user');
+    if (stored) {
+        handleLogin(JSON.parse(stored));
+    }
+}
+
+function applyRoleUI() {
+    const user = currentUser;
+    if (!user) return;
+    
+    document.body.className = 'role-' + user.role;
+    document.getElementById('userNameDisplay').textContent = user.name;
+    document.getElementById('userRoleDisplay').textContent = user.role === 'admin' ? 'Super Admin' : 'Consultant';
+    document.getElementById('userInitial').textContent = user.name[0].toUpperCase();
+
+    // Adjust sidebar navigation
+    const navMenu = document.querySelector('.nav-menu');
+    if (user.role === 'consultant') {
+        // Build consultant menu if not already there
+        if (!document.getElementById('nav-my-consultations')) {
+            const link = document.createElement('a');
+            link.href = "#";
+            link.className = "nav-link active";
+            link.id = "nav-my-consultations";
+            link.dataset.view = "my-consultations";
+            link.innerHTML = '<span class="nav-icon">🧘</span><span>My Consultations</span>';
+            link.addEventListener('click', e => { e.preventDefault(); switchView('my-consultations'); });
+            
+            // Insert after MAIN label
+            const label = navMenu.querySelector('.nav-section-label');
+            label.after(link);
+        }
+    }
 }
 
 // =====================================================================
@@ -192,6 +306,7 @@ function refreshAll() {
     updateStats();
     renderRecentTable();
     renderMainTable();
+    renderMyConsultations();
     renderConsultantViews();
     updateConsultantFilter();
     updateSidebarBadge();
@@ -313,6 +428,46 @@ function renderMainTable() {
         '<td><button class="action-btn" onclick="openDetailModal(\'' + escHtml(row.id) + '\')">View &amp; Assign</button></td>' +
         '</tr>'
     ).join('');
+}
+
+function renderMyConsultations() {
+    const tbody = document.getElementById('myConsultationsTableBody');
+    if (!tbody || !currentUser) return;
+
+    const myName = currentUser.name.toLowerCase().trim();
+    let filtered = allData.filter(d => {
+        const c1 = (d.consultant || '').toLowerCase().trim();
+        const c2 = (d.foundation || '').toLowerCase().trim();
+        const c3 = (d.foundation2 || '').toLowerCase().trim();
+        return c1 === myName || c2 === myName || c3 === myName;
+    });
+
+    if (currentMyStatusFilter !== 'all') {
+        filtered = filtered.filter(d => d.status === currentMyStatusFilter);
+    }
+
+    if (!filtered.length) {
+        tbody.innerHTML = '<tr><td colspan="9" class="empty-state">No consultations found.</td></tr>';
+        return;
+    }
+
+    tbody.innerHTML = filtered.map((row, i) => {
+        let roleBadge = '';
+        if (row.consultant.toLowerCase() === myName) roleBadge = '<span class="badge badge-hanuman">Primary</span>';
+        else roleBadge = '<span class="badge badge-allocated">Foundation</span>';
+
+        return '<tr>' +
+            '<td style="color:var(--text-faint)">#' + escHtml(row.rowNum||String(i+1)) + '</td>' +
+            '<td><div style="font-weight:600">' + escHtml(row.clientName) + '</div><div style="font-size:0.75rem;color:var(--text-faint)">' + escHtml(row.gender) + '</div></td>' +
+            '<td>' + makeCampaignBadge(row.campaign) + '</td>' +
+            '<td style="color:var(--text-muted);font-size:0.85rem">' + escHtml(row.concern) + '</td>' +
+            '<td style="color:var(--text-muted);font-size:0.82rem">' + escHtml(row.dob) + '<div style="font-size:0.7rem">' + escHtml(row.place) + '</div></td>' +
+            '<td>' + roleBadge + '</td>' +
+            '<td>' + makeStatusBadge(row.status) + '</td>' +
+            '<td>' + (row.feedback ? '<span style="font-size:0.8rem">' + escHtml(row.feedback) + '</span>' : '<em style="color:var(--text-faint)">None</em>') + '</td>' +
+            '<td><button class="action-btn" onclick="openDetailModal(\'' + escHtml(row.id) + '\')">View/Feedback</button></td>' +
+            '</tr>';
+    }).join('');
 }
 
 // =====================================================================
@@ -453,6 +608,18 @@ window.openDetailModal = function(id) {
     document.getElementById('firstPreferenceInput').value = item.firstPref || '';
     document.getElementById('statusSelect').value = item.status;
 
+    // Feedback & Notes
+    document.getElementById('clientFeedbackSelect').value = item.feedback || '';
+    document.getElementById('consultationNotes').value    = item.notes    || '';
+
+    // UI Adjustments based on role
+    const feedbackSec = document.getElementById('feedbackSection');
+    if (currentUser?.role === 'consultant') {
+        feedbackSec.style.display = 'block';
+    } else {
+        feedbackSec.style.display = 'block'; // Admin can also see/edit
+    }
+
     document.getElementById('detailModal').classList.add('active');
 };
 
@@ -495,7 +662,9 @@ window.saveAssignment = async function() {
         foundation: document.getElementById('foundationSelect').value,
         foundation2: document.getElementById('additionalConsultantSelect').value,
         firstPref:  document.getElementById('firstPreferenceInput').value,
-        status:     document.getElementById('statusSelect').value
+        status:     document.getElementById('statusSelect').value,
+        feedback:   document.getElementById('clientFeedbackSelect').value,
+        notes:      document.getElementById('consultationNotes').value
     };
 
     const result = await syncToGS(payload);
@@ -506,8 +675,10 @@ window.saveAssignment = async function() {
         allData[idx].foundation2 = payload.foundation2;
         allData[idx].firstPref  = payload.firstPref;
         allData[idx].status     = payload.status;
+        allData[idx].feedback   = payload.feedback;
+        allData[idx].notes      = payload.notes;
         showToast(SYNC_URL ? 'Saved and Synced to Sheet' : 'Saved locally (Sync disabled)', 'success');
-        updateStats(); renderMainTable(); renderRecentTable(); renderConsultantViews(); updateSidebarBadge();
+        updateStats(); renderMainTable(); renderRecentTable(); renderConsultantViews(); renderMyConsultations(); updateSidebarBadge();
         closeModal();
     } else {
         showToast('Sync Failed: Check Apps Script deployment', 'error');

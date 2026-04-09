@@ -934,3 +934,120 @@ select:focus { border-color: var(--primary); }
         width: 100%;
     }
 }
+
+/* ==================== LOGIN SCREEN ==================== */
+.login-overlay {
+    position: fixed;
+    inset: 0;
+    background: #07070d;
+    background-image: 
+        radial-gradient(circle at 20% 30%, rgba(201, 162, 39, 0.05) 0%, transparent 40%),
+        radial-gradient(circle at 80% 70%, rgba(99, 102, 241, 0.05) 0%, transparent 40%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 2000;
+}
+
+.login-card {
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 3rem;
+    width: 420px;
+    box-shadow: 0 40px 100px rgba(0,0,0,0.8);
+    text-align: center;
+}
+
+.login-logo { margin-bottom: 2.5rem; }
+.login-logo .logo-icon { font-size: 3rem; margin-bottom: 1rem; }
+.login-logo h1 { font-family: 'Playfair Display', serif; font-size: 2rem; margin-bottom: 0.25rem; }
+.login-logo h1 span { color: var(--primary); }
+.login-logo p { color: var(--text-faint); letter-spacing: 0.1em; text-transform: uppercase; font-size: 0.75rem; }
+
+.login-form { text-align: left; }
+.login-btn { width: 100%; margin-top: 1rem; padding: 1rem; font-size: 1rem; }
+
+.login-error-msg {
+    color: var(--danger);
+    font-size: 0.85rem;
+    margin-top: 1rem;
+    text-align: center;
+    min-height: 1.2rem;
+}
+
+/* ==================== SIDEBAR FOOTER UPDATES ==================== */
+.sidebar-footer {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.logout-btn {
+    background: rgba(239, 68, 68, 0.1);
+    border: 1px solid rgba(239, 68, 68, 0.2);
+    color: var(--danger);
+    padding: 0.6rem;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    font-family: inherit;
+    font-size: 0.85rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    transition: all 0.2s;
+}
+
+.logout-btn:hover {
+    background: var(--danger);
+    color: white;
+}
+
+/* ==================== FEEDBACK SECTION ==================== */
+.feedback-section {
+    margin-top: 1.5rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid var(--border);
+}
+
+textarea#consultationNotes {
+    width: 100%;
+    background: var(--bg-main);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 0.85rem;
+    color: var(--text-primary);
+    font-family: inherit;
+    font-size: 0.9rem;
+    resize: vertical;
+    outline: none;
+    transition: border-color 0.2s;
+}
+
+textarea#consultationNotes:focus { border-color: var(--primary); }
+
+/* ==================== ROLE SPECIFIC ==================== */
+.admin-only, .only-admin { display: none !important; }
+body.role-admin .admin-only, body.role-admin .only-admin { display: flex !important; }
+body.role-admin .nav-link[data-view="consultants"], 
+body.role-admin .nav-link[data-view="dashboard"],
+body.role-admin .nav-link[data-view="requests"] { display: flex !important; }
+
+.consultant-only, .only-consultant { display: none !important; }
+body.role-consultant .consultant-only, body.role-consultant .only-consultant { display: flex !important; }
+
+/* Dashboard visibility */
+body.role-consultant [data-view="dashboard"], 
+body.role-consultant [data-view="requests"], 
+body.role-consultant [data-view="consultants"] { display: none !important; }
+
+/* Hide desktop search for consultants if needed */
+body.role-consultant .search-wrap { visibility: hidden; }
+
+/* Mobile View Adjustments */
+@media (max-width: 900px) {
+    .login-card { width: 90%; padding: 2rem; }
+    .modal-grid { grid-template-columns: 1fr; }
+    .assign-card { position: static; }
+}
